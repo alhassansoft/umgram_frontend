@@ -13,10 +13,15 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "platforms": ["ios", "android", "web"],
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
     "plugins": [
       "expo-router",
-      "expo-notifications"
+      "expo-notifications",
+      "expo-font"
     ],
     "ios": {
       "supportsTablet": true
