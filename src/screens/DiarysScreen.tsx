@@ -1,5 +1,5 @@
 // src/screens/DiariesScreen.tsx
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,17 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useAuth } from '../auth/AuthContext';
+import {
+  Text as PaperText,
+  TextInput as PaperTextInput,
+  Button,
+  Card,
+  Chip,
+  ActivityIndicator as PaperActivityIndicator,
+  FAB,
+  Portal,
+  Dialog,
+} from 'react-native-paper';
 
 interface Diary {
   id: string;
@@ -75,7 +86,11 @@ interface Extraction {
 
 const LOCAL_BASE =
   Platform.OS === 'android' ? 'http://10.0.2.2:5001' : 'http://localhost:5001';
-const API_BASE = process.env.EXPO_PUBLIC_API_BASE ?? LOCAL_BASE;
+const API_BASE = (process.env.EXPO_PUBLIC_API_BASE_URL && process.env.EXPO_PUBLIC_API_BASE_URL.trim())
+  ? process.env.EXPO_PUBLIC_API_BASE_URL
+  : (process.env.EXPO_PUBLIC_API_BASE && process.env.EXPO_PUBLIC_API_BASE.trim())
+    ? process.env.EXPO_PUBLIC_API_BASE
+    : LOCAL_BASE;
 
 const DiariesScreen: React.FC = () => {
   const { user, accessToken } = useAuth();
@@ -105,6 +120,8 @@ const DiariesScreen: React.FC = () => {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [results, setResults] = useState<SearchHit[]>([]);
   const [answer, setAnswer] = useState<SelectorResult | null>(null);
+  // Cache answers by question+mode to avoid re-analysis for repeated queries
+  const answerCacheRef = useRef(new Map<string, SelectorResult>());
 
   // Call backend LLM selector
   async function runServerAnswerSelector(question: string, hits: SearchHit[], mode: 'wide'|'strict'):
@@ -327,7 +344,11 @@ const DiariesScreen: React.FC = () => {
   );
 
   if (loading) {
-    return <ActivityIndicator style={{ flex: 1 }} size="large" />;
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <PaperActivityIndicator animating size={32} />
+      </View>
+    );
   }
 
   return (
@@ -372,9 +393,18 @@ const DiariesScreen: React.FC = () => {
                 const data = await res.json();
                 const hits = (data?.hits ?? []) as SearchHit[];
                 setResults(hits);
-                // Ask server LLM to select the best answer from top hits
-                const sel = await runServerAnswerSelector(q.trim(), hits.slice(0, 10), mode);
-                setAnswer(sel);
+                // Answer selection with caching (question+mode)
+                const cacheKey = `${mode}|${q.trim().toLowerCase()}`;
+                const cached = answerCacheRef.current.get(cacheKey);
+                if (cached) {
+                  setAnswer(cached);
+                } else {
+                  const sel = await runServerAnswerSelector(q.trim(), hits.slice(0, 10), mode);
+                  if (sel) {
+                    answerCacheRef.current.set(cacheKey, sel);
+                  }
+                  setAnswer(sel);
+                }
               } catch (e: any) {
                 setSearchError(e?.message ?? 'فشل البحث');
               } finally {
@@ -458,7 +488,13 @@ const DiariesScreen: React.FC = () => {
                   <Text style={styles.title} numberOfLines={2}>
                     {item.title}
                   </Text>
-                  <View style={styles.actionRow} pointerEvents="box-none">
+                  <View
+                    style={[
+                      styles.actionRow,
+                      Platform.OS === 'web' ? ({ pointerEvents: 'box-none' } as any) : null,
+                    ]}
+                    {...(Platform.OS !== 'web' ? { pointerEvents: 'box-none' as const } : {})}
+                  >
                     <TouchableOpacity
                       activeOpacity={0.7}
                       onPress={() => openEditModal(item)}

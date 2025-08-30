@@ -71,13 +71,67 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // حمّل الجلسة من SecureStore عند الإقلاع
+  // Cross-platform storage: SecureStore on native, localStorage on web
+  const storage = useMemo(() => {
+    const isWeb = Platform.OS === 'web';
+    return {
+      getItem: async (key: string): Promise<string | null> => {
+        if (isWeb) {
+          try {
+            if (typeof window !== 'undefined' && window.localStorage) {
+              return window.localStorage.getItem(key);
+            }
+          } catch {}
+          return null;
+        }
+        try {
+          const ok = await SecureStore.isAvailableAsync();
+          if (!ok) return null;
+          return await SecureStore.getItemAsync(key);
+        } catch {
+          return null;
+        }
+      },
+      setItem: async (key: string, value: string): Promise<void> => {
+        if (isWeb) {
+          try {
+            if (typeof window !== 'undefined' && window.localStorage) {
+              window.localStorage.setItem(key, value);
+            }
+          } catch {}
+          return;
+        }
+        try {
+          const ok = await SecureStore.isAvailableAsync();
+          if (!ok) return;
+          await SecureStore.setItemAsync(key, value);
+        } catch {}
+      },
+      deleteItem: async (key: string): Promise<void> => {
+        if (isWeb) {
+          try {
+            if (typeof window !== 'undefined' && window.localStorage) {
+              window.localStorage.removeItem(key);
+            }
+          } catch {}
+          return;
+        }
+        try {
+          const ok = await SecureStore.isAvailableAsync();
+          if (!ok) return;
+          await SecureStore.deleteItemAsync(key);
+        } catch {}
+      },
+    } as const;
+  }, []);
+
+  // حمّل الجلسة (SecureStore على الهواتف، localStorage على الويب) عند الإقلاع
   useEffect(() => {
     (async () => {
       try {
         const [t, u] = await Promise.all([
-          SecureStore.getItemAsync('accessToken'),
-          SecureStore.getItemAsync('user'),
+          storage.getItem('accessToken'),
+          storage.getItem('user'),
         ]);
         if (t) {
           setAccessToken(t);
@@ -88,7 +142,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [storage]);
 
   // حدّث هيدر Authorization في العميل عند تغيّر التوكن
   useEffect(() => {
@@ -130,8 +184,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(u);
 
     // خزّن الجلسة
-    await SecureStore.setItemAsync('accessToken', at);
-    await SecureStore.setItemAsync('user', JSON.stringify(u));
+  await storage.setItem('accessToken', at);
+  await storage.setItem('user', JSON.stringify(u));
   }
 
   async function register(input: {
@@ -167,15 +221,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAccessToken(at);
     setUser(u);
 
-    await SecureStore.setItemAsync('accessToken', at);
-    await SecureStore.setItemAsync('user', JSON.stringify(u));
+  await storage.setItem('accessToken', at);
+  await storage.setItem('user', JSON.stringify(u));
   }
 
   async function logout() {
     setUser(null);
     setAccessToken(null);
-    await SecureStore.deleteItemAsync('accessToken');
-    await SecureStore.deleteItemAsync('user');
+  await storage.deleteItem('accessToken');
+  await storage.deleteItem('user');
   }
 
   const value: AuthContextType = useMemo(

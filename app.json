@@ -24,7 +24,11 @@
       "expo-font"
     ],
     "ios": {
-      "supportsTablet": true
+        "supportsTablet": true,
+        "infoPlist": {
+          "NSLocationWhenInUseUsageDescription": "We use your location to show your position on the map and enable circle chats for people nearby.",
+          "NSLocationAlwaysAndWhenInUseUsageDescription": "We use your location to show your position on the map and enable circle chats for people nearby."
+        }
     },
     "android": {
       "adaptiveIcon": {
@@ -37,7 +41,8 @@
       "favicon": "./assets/favicon.png"
     },
     "extra": {
-      "API_BASE_URL": "https://umgram.com/api"
+  "API_BASE_URL": "https://umgram.com/api",
+  "GOOGLE_MAPS_API_KEY": "AIzaSyBMg-RwKe1HlCV54NL_g6Ggf6ZxTHx09Gg"
     }
   }
 }
